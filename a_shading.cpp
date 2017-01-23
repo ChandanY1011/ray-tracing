@@ -22,7 +22,7 @@ struct vector3f
 struct sphere
 {
 	V center;
-	float radius;
+	float radius, reflectivity, transparency;
 	V color;
 	sphere() { };
 	sphere(V gcenter, float gradius, V gcolor) : center(gcenter), radius(gradius), color(gcolor) { };
@@ -32,7 +32,7 @@ struct sphere
 struct plane
 {
 	V normal;
-	float d;
+	float d, reflectivity, transparency;
 	plane() { };
 	plane(V gnormal, float gd) : normal(gnormal), d(gd) { };
 };
@@ -42,6 +42,7 @@ struct triangle
 {
 	V u, v, w;
 	V color;
+	float reflectivity, transparency;
 	triangle() { };
 	triangle(V gu, V gv, V gw, V gcolor) : u(gu), v(gv), w(gw), color(gcolor) { };
 };
@@ -89,7 +90,7 @@ void normalize(V & v)
 }
 
 // check intersection of a ray and a sphere
-bool intersectsphere(V rayorigin, V raydir, struct sphere s, V &normal, float &t0, float &t1)
+bool intersectsphere(V rayorigin, V raydir, struct sphere s, V & normal, float & t0, float & t1)
 {
 	float a = 1.0;
 	float b = 2*(raydir.x*(rayorigin.x-s.center.x)+
@@ -123,6 +124,13 @@ bool intersectsphere(V rayorigin, V raydir, struct sphere s, V &normal, float &t
 	normal.x = (rayorigin.x+raydir.x*t-s.center.x)/s.radius;
 	normal.y = (rayorigin.y+raydir.y*t-s.center.y)/s.radius;
 	normal.z = (rayorigin.z+raydir.z*t-s.center.z)/s.radius;
+	return true;
+}
+
+
+// second approach(vector based) for sphere ray intersection
+bool intersectspherealt(V rayorigin, V raydir, struct sphere s, V & normal, float & t0, float & t1)
+{
 	return true;
 }
 
@@ -187,12 +195,10 @@ bool intersecttriangle(V rayorigin, V raydir, struct triangle s, V & normal, flo
 	return true;
 }
 
-
 // trace rays and get pixel colour
 bool raytrace(V rayorigin, V raydir, V &intersectionPoint, float lightIntensity, V &normal)
 {
 	float reflectionFactor = 0.5;
-
 	float nearest = Max_t;
 	struct sphere * s = NULL;
 	struct plane * p = NULL;
@@ -200,13 +206,13 @@ bool raytrace(V rayorigin, V raydir, V &intersectionPoint, float lightIntensity,
 	V pix;
 	bool objectfound = false;
 	object ob = none;
-	pix.x = pix.y = pix.z = 1.0;
+	pix.x = pix.y = pix.z = 0.4;
 
 	// stop after two reflections
 	if(lightIntensity < reflectionFactor) {
 		return false;	
 	}
-	// for each sphere
+
 	for(int spherei = 0; spherei < numspheres; spherei++)
 	{
 		float t0 = Max_t, t1 = Max_t;
@@ -223,7 +229,6 @@ bool raytrace(V rayorigin, V raydir, V &intersectionPoint, float lightIntensity,
 			}
 		}
 	}
-	// for each triangle
 	for(int trianglei = 0; trianglei < numtriangles; trianglei++)
 	{
 		float t = Max_t;
@@ -240,8 +245,7 @@ bool raytrace(V rayorigin, V raydir, V &intersectionPoint, float lightIntensity,
 			}
 		}
 	}
-	if(!objectfound)
-	{
+	if(!objectfound) {
 		intersectionPoint = pix;
 		return false;
 	}
@@ -251,28 +255,60 @@ bool raytrace(V rayorigin, V raydir, V &intersectionPoint, float lightIntensity,
 	pix.x = pix.y = pix.z = 0.0;
 	// no recursive tracing since object is diffuse just get surface colour
 	// cout << (*s).color.x << " " << (*s).color.y << " " << (*s).color.z << endl;
-	for(int lighti = 0; lighti < numlights; lighti++)
-	{
+	float bias = 1e-4;
+	for(int lighti = 0; lighti < numlights; lighti++) {
 		V lightdir(lights[lighti].point.x-intpoint.x, lights[lighti].point.y-intpoint.y, lights[lighti].point.z-intpoint.z); 
 		normalize(lightdir);
 		float dotprod = max(float(0.0), normal.x*lightdir.x+normal.y*lightdir.y+normal.z*lightdir.z);
-		if(ob == sphereob)
-		{
-			pix.x += dotprod * (*s).color.x * lights[lighti].color.x;
-			pix.y += dotprod * (*s).color.y * lights[lighti].color.y;
-			pix.z += dotprod * (*s).color.z * lights[lighti].color.z;
+		// check if point is in shadow
+		bool inshadow = false;
+		V normaltemp;
+		float t0, t1, t;
+		V biasedintpoint(intpoint.x+normal.x*bias, intpoint.y+normal.y*bias, intpoint.z+normal.z*bias);
+		for(int spherei = 0; spherei < numspheres; spherei++) {
+			if(intersectsphere(biasedintpoint, lightdir, spheres[spherei], normaltemp, t0, t1)) {
+				inshadow = true;
+				break;
+			}
 		}
-		else if(ob == triangleob)
-		{
-			pix.x += dotprod * (*tr).color.x * lights[lighti].color.x;
-			pix.y += dotprod * (*tr).color.y * lights[lighti].color.y;
-			pix.z += dotprod * (*tr).color.z * lights[lighti].color.z;
+		if(inshadow == true) {
+			continue;
+		}
+		for(int trianglei = 0; trianglei < numtriangles; trianglei++) {
+			if(intersecttriangle(biasedintpoint, lightdir, triangles[trianglei], normaltemp, t)) {
+				inshadow = true;
+				break;
+			}
+		}
+		if(!inshadow) {
+			if(ob == sphereob) {
+				if((*s).reflectivity > 0.0) {// || (*s).transparency > 0.0) 
+					float ndoti2 = 2*(lightdir.x*normal.x+lightdir.y*normal.y+lightdir.z*normal.z);
+					V reflectedray(ndoti2*normal.x-lightdir.x, ndoti2*normal.y-lightdir.y, ndoti2*normal.z-lightdir.z);
+					normalize(reflectedray);
+					float rdotv = -1*(raydir.x*reflectedray.x+raydir.y*reflectedray.y+raydir.z*reflectedray.z);
+					pix.x += (*s).color.x*(*s).reflectivity*pow(rdotv, 2)*lights[lighti].color.x;
+					pix.y += (*s).color.y*(*s).reflectivity*pow(rdotv, 2)*lights[lighti].color.y;
+					pix.z += (*s).color.z*(*s).reflectivity*pow(rdotv, 2)*lights[lighti].color.z;
+				}
+				pix.x += dotprod*(*s).color.x*lights[lighti].color.x;
+				pix.y += dotprod*(*s).color.y*lights[lighti].color.y;
+				pix.z += dotprod*(*s).color.z*lights[lighti].color.z;
+			}
+			else if(ob == triangleob) {
+				pix.x += dotprod*(*tr).color.x*lights[lighti].color.x;
+				pix.y += dotprod*(*tr).color.y*lights[lighti].color.y;
+				pix.z += dotprod*(*tr).color.z*lights[lighti].color.z;
+			}
+		}
+		else {
+			pix.x = pix.y = pix.z = 0.0;
 		}
 	}
 
-	//reflection (Chandan)
+
+		//reflection (Chandan)
 	V newIntersection;
-	float bias = 1e-4;
 	V biasedintpoint(intpoint.x+bias*normal.x,intpoint.y+bias*normal.y,intpoint.z+bias*normal.z);
 	V newNormal;
 	bool reflected = raytrace(biasedintpoint, normal, newIntersection, lightIntensity*reflectionFactor, newNormal);
@@ -307,7 +343,7 @@ vector3f raytraceFull(V rayorigin, V raydir)
 }
 
 // evaluates pixel values of resulting image and stores in a file
-void render2d(char* outputfile)
+void render2d(char* outfile)
 {
 	V ** image = new V * [height];
 	for(int row = 0; row < height; row++)
@@ -315,7 +351,7 @@ void render2d(char* outputfile)
 		image[row] = new vector3f[width];
 	}
 	V * pixeli;
-	float fieldofview = 90;		// TODO: what is this?
+	float fieldofview = 90;
 	float whratio = (float)width/(float)height;
 	float dwidth = 1.0/(float)width;
 	float dheight = 1.0/(float)height;
@@ -326,8 +362,8 @@ void render2d(char* outputfile)
 		pixeli = image[yval];
 		for(int xval = 0; xval < width; xval++)
 		{
-			float imagex = (2*((xval+0.5)*dwidth)-1) * angleofview * whratio;
-			float imagey = (1 - 2*((yval+0.5)*dheight)) * angleofview;
+			float imagex = (2*((xval+0.5)*dwidth)-1)*angleofview*whratio;
+			float imagey = (1-2*((yval+0.5)*dheight))*angleofview;
 			V raydir(imagex, imagey, -1);
 			normalize(raydir);
 			*pixeli = raytraceFull(orig, raydir);
@@ -335,7 +371,7 @@ void render2d(char* outputfile)
 		}
 	}
 
-	FILE *f = fopen(outputfile, "wb");
+	FILE *f = fopen(outfile, "wb");
 	fprintf(f, "P6\n%i %i 255\n", width, height);
 	for(int y = 0; y < height; y++)
 	{
@@ -365,6 +401,7 @@ void parseinput(char * file)
 			op >> s.center.x >> s.center.y >> s.center.z;
 			op >> s.radius;
 			op >> s.color.x >> s.color.y >> s.color.z;
+			op >> s.reflectivity >> s.transparency;
 			spheres.push_back(s);
 			numspheres++;
 		}
@@ -372,7 +409,7 @@ void parseinput(char * file)
 		{
 			struct plane p;
 			op >> p.normal.x >> p.normal.y >> p.normal.z;
-			op >> p.d;
+			op >> p.d >> p.reflectivity >> p.transparency;
 			planes.push_back(p);
 			numplanes++;
 		}
@@ -383,6 +420,7 @@ void parseinput(char * file)
 			op >> t.v.x >> t.v.y >> t.v.z;
 			op >> t.w.x >> t.w.y >> t.w.z;
 			op >> t.color.x >> t.color.y >> t.color.z;
+			op >> t.reflectivity >> t.transparency;
 			triangles.push_back(t);
 			numtriangles++;
 		}
@@ -403,7 +441,7 @@ int main(int argc, char ** argv)
 	if(argc < 3 || argc > 3)
 	{
 		cout << "Please follow the specifications!\nUnexpected arguments given.\n";
-		cout << "Please run as: a.exe <inputfile> <outputfile>\n";
+		cout << "Please run as: a.exe <inputfile>\n";
 		exit(0);
 	}
 

@@ -9,6 +9,7 @@ using namespace std;
 
 #define Max_t 1e8
 #define V struct vector3f
+#define MAX_depth 4
 
 // either store 3d coordinates or rgb colour value
 struct vector3f
@@ -22,7 +23,7 @@ struct vector3f
 struct sphere
 {
 	V center;
-	float radius, reflectivity, transparency;
+	float radius, reflectivity, transparency, refractive_index;
 	V color;
 	sphere() { };
 	sphere(V gcenter, float gradius, V gcolor) : center(gcenter), radius(gradius), color(gcolor) { };
@@ -32,7 +33,7 @@ struct sphere
 struct plane
 {
 	V normal;
-	float d, reflectivity, transparency;
+	float d, reflectivity, transparency, refractive_index;
 	plane() { };
 	plane(V gnormal, float gd) : normal(gnormal), d(gd) { };
 };
@@ -42,7 +43,7 @@ struct triangle
 {
 	V u, v, w;
 	V color;
-	float reflectivity, transparency;
+	float reflectivity, transparency, refractive_index;
 	triangle() { };
 	triangle(V gu, V gv, V gw, V gcolor) : u(gu), v(gv), w(gw), color(gcolor) { };
 };
@@ -196,8 +197,11 @@ bool intersecttriangle(V rayorigin, V raydir, struct triangle s, V & normal, flo
 }
 
 // trace rays and get pixel colour
-bool raytrace(V rayorigin, V raydir, V &intersectionPoint, float lightIntensity, V &normal)
+// @param intersectionPoint: saves the pixel for intersection point of the ray with the nearest object
+// @param normal: saves the normal at intersectionPoint
+bool raytrace(V rayorigin, V raydir, V &intersectionPoint, float lightIntensity, V &normal, int depth)
 {
+	float n1 = 1.0;
 	float reflectionFactor = 0.5;
 	float nearest = Max_t;
 	struct sphere * s = NULL;
@@ -256,7 +260,12 @@ bool raytrace(V rayorigin, V raydir, V &intersectionPoint, float lightIntensity,
 	// no recursive tracing since object is diffuse just get surface colour
 	// cout << (*s).color.x << " " << (*s).color.y << " " << (*s).color.z << endl;
 	float bias = 1e-4;
-	for(int lighti = 0; lighti < numlights; lighti++) {
+	bool diffuse = true;
+	V biasedintpoint(intpoint.x+normal.x*bias, intpoint.y+normal.y*bias, intpoint.z+normal.z*bias);
+	
+	// shadows and gloss (Abhishek)
+	for(int lighti = 0; lighti < numlights; lighti++)
+	{
 		V lightdir(lights[lighti].point.x-intpoint.x, lights[lighti].point.y-intpoint.y, lights[lighti].point.z-intpoint.z); 
 		normalize(lightdir);
 		float dotprod = max(float(0.0), normal.x*lightdir.x+normal.y*lightdir.y+normal.z*lightdir.z);
@@ -265,71 +274,193 @@ bool raytrace(V rayorigin, V raydir, V &intersectionPoint, float lightIntensity,
 		V normaltemp;
 		float t0, t1, t;
 		V biasedintpoint(intpoint.x+normal.x*bias, intpoint.y+normal.y*bias, intpoint.z+normal.z*bias);
-		for(int spherei = 0; spherei < numspheres; spherei++) {
-			if(intersectsphere(biasedintpoint, lightdir, spheres[spherei], normaltemp, t0, t1)) {
+		for(int spherei = 0; spherei < numspheres; spherei++)
+		{
+			if(intersectsphere(biasedintpoint, lightdir, spheres[spherei], normaltemp, t0, t1))
+			{
 				inshadow = true;
 				break;
 			}
 		}
-		if(inshadow == true) {
+		if(inshadow == true)
+		{
 			continue;
 		}
-		for(int trianglei = 0; trianglei < numtriangles; trianglei++) {
-			if(intersecttriangle(biasedintpoint, lightdir, triangles[trianglei], normaltemp, t)) {
+		for(int trianglei = 0; trianglei < numtriangles; trianglei++)
+		{
+			if(intersecttriangle(biasedintpoint, lightdir, triangles[trianglei], normaltemp, t))
+			{
 				inshadow = true;
 				break;
 			}
 		}
-		if(!inshadow) {
-			if(ob == sphereob) {
-				if((*s).reflectivity > 0.0) {// || (*s).transparency > 0.0) 
-					float ndoti2 = 2*(lightdir.x*normal.x+lightdir.y*normal.y+lightdir.z*normal.z);
-					V reflectedray(ndoti2*normal.x-lightdir.x, ndoti2*normal.y-lightdir.y, ndoti2*normal.z-lightdir.z);
-					normalize(reflectedray);
-					float rdotv = -1*(raydir.x*reflectedray.x+raydir.y*reflectedray.y+raydir.z*reflectedray.z);
-					pix.x += (*s).color.x*(*s).reflectivity*pow(rdotv, 2)*lights[lighti].color.x;
-					pix.y += (*s).color.y*(*s).reflectivity*pow(rdotv, 2)*lights[lighti].color.y;
-					pix.z += (*s).color.z*(*s).reflectivity*pow(rdotv, 2)*lights[lighti].color.z;
-				}
+		if(!inshadow)
+		{
+			if(ob == sphereob)
+			{
+				float ndoti2 = 2*(lightdir.x*normal.x+lightdir.y*normal.y+lightdir.z*normal.z);
+				V reflectedray(ndoti2*normal.x-lightdir.x, ndoti2*normal.y-lightdir.y, ndoti2*normal.z-lightdir.z);
+				normalize(reflectedray);
+				float rdotv = -1*(raydir.x*reflectedray.x+raydir.y*reflectedray.y+raydir.z*reflectedray.z);
+				pix.x += (*s).color.x*(*s).reflectivity*pow(rdotv, 10)*lights[lighti].color.x;
+				pix.y += (*s).color.y*(*s).reflectivity*pow(rdotv, 10)*lights[lighti].color.y;
+				pix.z += (*s).color.z*(*s).reflectivity*pow(rdotv, 10)*lights[lighti].color.z;
 				pix.x += dotprod*(*s).color.x*lights[lighti].color.x;
 				pix.y += dotprod*(*s).color.y*lights[lighti].color.y;
 				pix.z += dotprod*(*s).color.z*lights[lighti].color.z;
 			}
-			else if(ob == triangleob) {
+			else if(ob == triangleob)
+			{
+				float ndoti2 = 2*(lightdir.x*normal.x+lightdir.y*normal.y+lightdir.z*normal.z);
+				V reflectedray(ndoti2*normal.x-lightdir.x, ndoti2*normal.y-lightdir.y, ndoti2*normal.z-lightdir.z);
+				normalize(reflectedray);
+				float rdotv = -1*(raydir.x*reflectedray.x+raydir.y*reflectedray.y+raydir.z*reflectedray.z);
+				pix.x += (*tr).color.x*(*tr).reflectivity*pow(rdotv, 10)*lights[lighti].color.x;
+				pix.y += (*tr).color.y*(*tr).reflectivity*pow(rdotv, 10)*lights[lighti].color.y;
+				pix.z += (*tr).color.z*(*tr).reflectivity*pow(rdotv, 10)*lights[lighti].color.z;
 				pix.x += dotprod*(*tr).color.x*lights[lighti].color.x;
 				pix.y += dotprod*(*tr).color.y*lights[lighti].color.y;
 				pix.z += dotprod*(*tr).color.z*lights[lighti].color.z;
 			}
 		}
-		else {
-			pix.x = pix.y = pix.z = 0.0;
+	}
+	float fratio = -1*(raydir.x*normal.x+raydir.y*normal.y+raydir.z*normal.z);
+	float fresnel = 0.1*1+0.9*pow(1.0-fratio, 3);
+	// cout<<"Fresnel = "<<fresnel<<" and Fresnelt = "<<(1.0 - fresnel)<<endl;
+	// cout<<"fresnel = "<<fresnel<<endl;
+	V reflectdir(raydir.x + 2*fratio*normal.x, raydir.y + 2*fratio*normal.y, raydir.z+2*fratio*normal.z);
+	normalize(reflectdir);
+
+	//Calculating Fresnel constants
+	// V biasedintpoint(intpoint.x+bias*normal.x,intpoint.y+bias*normal.y,intpoint.z+bias*normal.z);
+	float n2;
+	if(ob == sphereob) n2 = (*s).refractive_index;
+	else if(ob == triangleob) n2 = (*tr).refractive_index;
+	
+	// float cosi = -1 * (normal.x * intpoint.x + normal.y * intpoint.y + normal.z * intpoint.z);
+	float cosi = fratio;
+	float sini = sqrt(1 - cosi*cosi);
+	// cout<<"cosi = "<<cosi<<" sini = "<<sini<<endl;
+	float sinr = sini * n1 / n2;
+	float cosr = sqrt(1 - sinr*sinr);
+	// cout<<"cosr = "<<cosr<<" sinr = "<<sinr<<endl;
+
+	float FrPll = ((n2*cosi - n1*cosr))/((n2*cosi + n1*cosr));
+	FrPll *= FrPll;
+	float FrPpd = ((n1*cosi - n2*cosr))/((n1*cosi + n2*cosr));
+	FrPpd *= FrPpd;
+	float Fr = (FrPll + FrPpd)/2;			// amount reflected
+	float Ft = 1 - Fr;						// amount transmitted
+	cout<<"Fr = "<<Fr<<" and fresnel = "<<fresnel<<endl;
+
+	if(depth < MAX_depth)
+	{
+		if(ob == sphereob)
+		{
+			if((*s).reflectivity > 0)
+			{
+				V reflectpoint, newNormal;
+				raytrace(biasedintpoint, reflectdir, reflectpoint, 1, newNormal, depth+1);
+				pix.x += reflectpoint.x * Fr * (*s).color.x;// * (*s).reflectivity;
+				pix.y += reflectpoint.y * Fr * (*s).color.y;// * (*s).reflectivity;
+				pix.z += reflectpoint.z * Fr * (*s).color.z;// * (*s).reflectivity;
+				diffuse = false;
+			}
+			if((*s).transparency > 0)
+			{
+				float refractindex = (*s).refractive_index;
+				float raydotn = -1*(normal.x*raydir.x+normal.y*raydir.y+normal.z*raydir.z);
+				float k = 1.0-refractindex*refractindex*(1.0-raydotn*raydotn);
+				V refractdir(raydir.x*refractindex+normal.x*(refractindex*raydotn-sqrt(k)),
+							 raydir.y*refractindex+normal.y*(refractindex*raydotn-sqrt(k)),
+							 raydir.z*refractindex+normal.z*(refractindex*raydotn-sqrt(k)));
+				normalize(refractdir);
+				// V biasedintpoint(intpoint.x-normal.x*bias, intpoint.y-normal.y*bias, intpoint.z-normal.z*bias);
+				V refractpoint, newNormal;
+				raytrace(biasedintpoint, refractdir, refractpoint, 1, newNormal, depth+1);
+				pix.x += refractpoint.x*(Ft)*(*s).transparency*(*s).color.x;
+				pix.y += refractpoint.y*(Ft)*(*s).transparency*(*s).color.y;
+				pix.z += refractpoint.z*(Ft)*(*s).transparency*(*s).color.z;
+				diffuse = false;
+			}
+		}
+		else if(ob == triangleob)
+		{
+			if((*tr).reflectivity > 0)
+			{
+				V reflectpoint, newNormal;
+				raytrace(biasedintpoint, reflectdir, reflectpoint, 1, newNormal, depth+1);
+				pix.x += reflectpoint.x * Fr * (*tr).color.x;// * (*tr).reflectivity;
+				pix.y += reflectpoint.y * Fr * (*tr).color.y;// * (*tr).reflectivity;
+				pix.z += reflectpoint.z * Fr * (*tr).color.z;// * (*tr).reflectivity;
+				diffuse = false;
+			}
+			if((*tr).transparency > 0)
+			{
+				float refractindex = (*tr).refractive_index;
+				float raydotn = -1*(normal.x*raydir.x+normal.y*raydir.y+normal.z*raydir.z);
+				float k = 1.0-refractindex*refractindex*(1.0-raydotn*raydotn);
+				V refractdir(raydir.x*refractindex + normal.x*(refractindex*raydotn-sqrt(k)),
+							 raydir.y*refractindex+normal.y*(refractindex*raydotn-sqrt(k)),
+							 raydir.z*refractindex+normal.z*(refractindex*raydotn-sqrt(k)));
+				normalize(refractdir);
+				// V biasedintpoint(intpoint.x-normal.x*bias, intpoint.y-normal.y*bias, intpoint.z-normal.z*bias);
+				V refractpoint, newNormal;
+				raytrace(biasedintpoint, refractdir, refractpoint, 1, newNormal, depth+1);
+				pix.x += refractpoint.x*(Ft)*(*tr).transparency*(*tr).color.x;
+				pix.y += refractpoint.y*(Ft)*(*tr).transparency*(*tr).color.y;
+				pix.z += refractpoint.z*(Ft)*(*tr).transparency*(*tr).color.z;
+				diffuse = false;
+			}
 		}
 	}
 
+	//refraction (Chandan)
+	// Calculating Fresnel constants
+	// V biasedintpoint(intpoint.x+bias*normal.x,intpoint.y+bias*normal.y,intpoint.z+bias*normal.z);
+	// float n2;
+	// if(ob == sphereob) n2 = (*s).refractive_index;
+	// else if(ob == triangleob) n2 = (*tr).refractive_index;
+	
+	// float cosi = -1 * (normal.x * intpoint.x + normal.y * intpoint.y + normal.z * intpoint.z);
+	// float sini = sqrt(1 - cosi*cosi);
+	// float sinr = sini * n1 / n2;
+	// float cosr = sqrt(1 - sinr*sinr);
 
-		//reflection (Chandan)
-	V newIntersection;
-	V biasedintpoint(intpoint.x+bias*normal.x,intpoint.y+bias*normal.y,intpoint.z+bias*normal.z);
-	V newNormal;
-	bool reflected = raytrace(biasedintpoint, normal, newIntersection, lightIntensity*reflectionFactor, newNormal);
-	if(!reflected) {
-		// pix.x = pix.y = pix.z = 1.0;
-		intersectionPoint = pix;
-		return true;
-	} 
-	else {
-		V reflectedColor(0.0, 0.0, 0.0);
-		for(int lighti =0; lighti < numlights; lighti++) {
-			V lightdir(lights[lighti].point.x-newIntersection.x, lights[lighti].point.y-newIntersection.y, lights[lighti].point.z-newIntersection.z); 
-			float dotprod = max(float(0.0), newNormal.x*lightdir.x + newNormal.y*lightdir.y + newNormal.z*lightdir.z);
-			reflectedColor.x += dotprod * newIntersection.x * lights[lighti].color.x;
-			reflectedColor.y += dotprod * newIntersection.y * lights[lighti].color.y;
-			reflectedColor.z += dotprod * newIntersection.z * lights[lighti].color.z;
-		}
-		pix.x += reflectedColor.x * lightIntensity*reflectionFactor;
-		pix.y += reflectedColor.y * lightIntensity*reflectionFactor;
-		pix.z += reflectedColor.z * lightIntensity*reflectionFactor;
-	}
+	// float FrPll = ((n2*cosi - n1*cosr)*(n2*cosi - n1*cosr))/((n2*cosi + n1*cosr)*(n2*cosi + n1*cosr));
+	// float FrPpd = ((n1*cosi - n2*cosr)*(n1*cosi - n2*cosr))/((n1*cosi + n2*cosr)*(n1*cosi + n2*cosr));
+	// float Fr = (FrPll + FrPpd)/2;			// amount reflected
+	// float Ft = 1 - Fr;						// amount transmitted
+
+
+
+	// V newIntersection;
+	
+	// V newNormal;
+	// bool reflected = raytrace(biasedintpoint, normal, newIntersection, lightIntensity*reflectionFactor, newNormal, );
+	// if(!reflected) {
+	// 	intersectionPoint = pix;
+	// 	return true;
+	// } 
+	// else {
+	// 	V reflectedColor(0.0, 0.0, 0.0);
+	// 	for(int lighti =0; lighti < numlights; lighti++) {
+	// 		V lightdir(lights[lighti].point.x-newIntersection.x, lights[lighti].point.y-newIntersection.y, lights[lighti].point.z-newIntersection.z); 
+	// 		float dotprod = max(float(0.0), newNormal.x*lightdir.x + newNormal.y*lightdir.y + newNormal.z*lightdir.z);
+	// 		reflectedColor.x += dotprod * newIntersection.x * lights[lighti].color.x;
+	// 		reflectedColor.y += dotprod * newIntersection.y * lights[lighti].color.y;
+	// 		reflectedColor.z += dotprod * newIntersection.z * lights[lighti].color.z;
+	// 	}
+	// 	float thisreflectivity;
+	// 	if(ob == sphereob) {
+	// 		thisreflectivity = (*s).reflectivity;
+	// 	} else if(ob == triangleob) {
+	// 		thisreflectivity = (*tr).reflectivity;
+	// 	}
+	// 	pix.x += reflectedColor.x * lightIntensity * reflectionFactor * thisreflectivity;
+	// 	pix.y += reflectedColor.y * lightIntensity * reflectionFactor * thisreflectivity;
+	// 	pix.z += reflectedColor.z * lightIntensity * reflectionFactor * thisreflectivity;
+	// }
 
 	intersectionPoint = pix;
 	return true;
@@ -338,7 +469,7 @@ bool raytrace(V rayorigin, V raydir, V &intersectionPoint, float lightIntensity,
 vector3f raytraceFull(V rayorigin, V raydir)
 {
 	V pix, normal;
-	bool doesIntersect = raytrace(rayorigin, raydir, pix, 1, normal);
+	bool doesIntersect = raytrace(rayorigin, raydir, pix, 1, normal, 0);
 	return pix;
 }
 
@@ -401,7 +532,7 @@ void parseinput(char * file)
 			op >> s.center.x >> s.center.y >> s.center.z;
 			op >> s.radius;
 			op >> s.color.x >> s.color.y >> s.color.z;
-			op >> s.reflectivity >> s.transparency;
+			op >> s.reflectivity >> s.transparency >> s.refractive_index;
 			spheres.push_back(s);
 			numspheres++;
 		}
@@ -409,7 +540,7 @@ void parseinput(char * file)
 		{
 			struct plane p;
 			op >> p.normal.x >> p.normal.y >> p.normal.z;
-			op >> p.d >> p.reflectivity >> p.transparency;
+			op >> p.d >> p.reflectivity >> p.transparency >> p.refractive_index;
 			planes.push_back(p);
 			numplanes++;
 		}
@@ -420,7 +551,8 @@ void parseinput(char * file)
 			op >> t.v.x >> t.v.y >> t.v.z;
 			op >> t.w.x >> t.w.y >> t.w.z;
 			op >> t.color.x >> t.color.y >> t.color.z;
-			op >> t.reflectivity >> t.transparency;
+			op >> t.reflectivity >> t.transparency >> t.refractive_index;
+			cout<<"tr.transparency "<<t.transparency<<endl;
 			triangles.push_back(t);
 			numtriangles++;
 		}

@@ -1,0 +1,11 @@
+5
+light 		10.0 	10.0 	-5.0 	0.33 	0.33 	0.33
+sphere 		0.0 	0.0 	-25.0 	4.0 	1.0 	0.0 	0.0 	1.0 	0.0
+triangle 	-15.0 	-12.0 	0.0 	15.0 	-12.0 	0.0 	-200.0 	-12.0	-300.0	1.0 	1.0 	0.0  	1.5 	1.0
+triangle 	-15.0 	-12.0 	0.0 	15.0 	-12.0 	0.0 	200.0 	-12.0	-300.0	1.0 	1.0 	0.0  	1.5 	1.0
+triangle 	-200.0	-12.0	-300.0	200.0	-12.0	-300.0	0.0		-12.0	0.0		1.0 	1.0 	0.0  	1.5 	1.0
+
+
+// sphere/light x y z rad colr colg colb reflectivity transparency refractive_index (only for sphere)
+// plane ax by cz d colr colg colb reflectivity transparency refractive_index
+// triangle ux uy uz vx vy vz wx wy wz colr colg colb reflectivity transparency refractive_index

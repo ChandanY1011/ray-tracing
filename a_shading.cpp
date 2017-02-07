@@ -368,20 +368,21 @@ bool raytrace(V rayorigin, V raydir, V &intersectionPoint, float lightIntensity,
 			}
 			if((*s).transparency > 0)
 			{
-				float refractindex = (*s).refractive_index;
-				float raydotn = -1*(normal.x*raydir.x+normal.y*raydir.y+normal.z*raydir.z);
-				float k = 1.0-refractindex*refractindex*(1.0-raydotn*raydotn);
-				V refractdir(raydir.x*refractindex+normal.x*(refractindex*raydotn-sqrt(k)),
-							 raydir.y*refractindex+normal.y*(refractindex*raydotn-sqrt(k)),
-							 raydir.z*refractindex+normal.z*(refractindex*raydotn-sqrt(k)));
-				normalize(refractdir);
-				// V biasedintpoint(intpoint.x-normal.x*bias, intpoint.y-normal.y*bias, intpoint.z-normal.z*bias);
-				V refractpoint, newNormal;
-				raytrace(biasedintpoint, refractdir, refractpoint, 1, newNormal, depth+1);
-				pix.x += refractpoint.x*(Ft)*(*s).transparency*(*s).color.x;
-				pix.y += refractpoint.y*(Ft)*(*s).transparency*(*s).color.y;
-				pix.z += refractpoint.z*(Ft)*(*s).transparency*(*s).color.z;
-				diffuse = false;
+				// float refractindex = (*s).refractive_index;
+				// float raydotn = -1*(normal.x*raydir.x+normal.y*raydir.y+normal.z*raydir.z);
+				// float k = 1.0-refractindex*refractindex*(1.0-raydotn*raydotn);
+				// V refractdir(raydir.x*refractindex+normal.x*(refractindex*raydotn-sqrt(k)),
+				// 			 raydir.y*refractindex+normal.y*(refractindex*raydotn-sqrt(k)),
+				// 			 raydir.z*refractindex+normal.z*(refractindex*raydotn-sqrt(k)));
+				// normalize(refractdir);
+				// // V biasedintpoint(intpoint.x-normal.x*bias, intpoint.y-normal.y*bias, intpoint.z-normal.z*bias);
+				// V refractpoint, newNormal;
+				// raytrace(biasedintpoint, refractdir, refractpoint, 1, newNormal, depth+1);
+				// pix.x += refractpoint.x*(Ft)*(*s).transparency*(*s).color.x;
+				// pix.y += refractpoint.y*(Ft)*(*s).transparency*(*s).color.y;
+				// pix.z += refractpoint.z*(Ft)*(*s).transparency*(*s).color.z;
+				// diffuse = false;
+				float ior 
 			}
 		}
 		else if(ob == triangleob)

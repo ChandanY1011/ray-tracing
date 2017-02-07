@@ -52,6 +52,14 @@ struct triangle
 	triangle(V gu, V gv, V gw, V gcolor) : u(gu), v(gv), w(gw), color(gcolor) { };
 };
 
+struct cuboid {
+	V c1, c2, c3 ,c4, c5, c6, c7, c8;
+	V color;
+	float reflectivity, transparency, refractive_index;
+	cuboid() {};
+	cuboid(V c1, V c2, V col) : corner1(c1), corner2(c2), color(col) {};
+};
+
 // light source
 struct light
 {
@@ -66,18 +74,21 @@ enum object
 	none,
 	sphereob,
 	triangleob,
-	planeob
+	planeob,
+	cuboidob
 };
 
 vector <sphere> spheres;
 vector <plane> planes;
 vector <triangle> triangles;
 vector <light> lights;
+vector <cuboid> cuboids;
 
 int numspheres = 0;
 int numplanes = 0;
 int numtriangles = 0;
 int numlights = 0;
+int numcuboids = 0;
 
 int width = 640;
 int height = 480;
@@ -278,7 +289,80 @@ vector3f raytrace(V rayorigin, V raydir, int depth)
 	float bias = 1e-4;
 	bool diffuse = true;
 
-	// constants for reflection and refraction
+	// illumination
+	for(int lighti = 0; lighti < numlights; lighti++)
+	{
+		V lightdir(lights[lighti].point.x-intpoint.x, lights[lighti].point.y-intpoint.y, lights[lighti].point.z-intpoint.z); 
+		normalize(lightdir);
+		float dotprod = max(float(0.0), normal.x*lightdir.x+normal.y*lightdir.y+normal.z*lightdir.z);
+		// check if point is in shadow
+		bool inshadow = false;
+		V normaltemp;
+		float t0, t1, t;
+		V biasedintpoint(intpoint.x+normal.x*bias, intpoint.y+normal.y*bias, intpoint.z+normal.z*bias);
+		for(int spherei = 0; spherei < numspheres; spherei++)
+		{
+			if(intersectsphere(biasedintpoint, lightdir, spheres[spherei], normaltemp, t0, t1))
+			{
+				inshadow = true;
+				break;
+			}
+		}
+		if(inshadow == true)
+		{
+			continue;
+		}
+		for(int trianglei = 0; trianglei < numtriangles; trianglei++)
+		{
+			if(intersecttriangle(biasedintpoint, lightdir, triangles[trianglei], normaltemp, t))
+			{
+				inshadow = true;
+				break;
+			}
+		}
+		if(!inshadow)
+		{
+			if(ob == sphereob)
+			{
+				float ndoti2 = 2*(lightdir.x*normal.x+lightdir.y*normal.y+lightdir.z*normal.z);
+				V reflectedray(ndoti2*normal.x-lightdir.x, ndoti2*normal.y-lightdir.y, ndoti2*normal.z-lightdir.z);
+				normalize(reflectedray);
+				float rdotv = -1*(raydir.x*reflectedray.x+raydir.y*reflectedray.y+raydir.z*reflectedray.z);
+				pix.x += (*s).color.x*(*s).reflectivity*pow(rdotv, 10)*lights[lighti].color.x;
+				pix.y += (*s).color.y*(*s).reflectivity*pow(rdotv, 10)*lights[lighti].color.y;
+				pix.z += (*s).color.z*(*s).reflectivity*pow(rdotv, 10)*lights[lighti].color.z;
+				pix.x += dotprod*(*s).color.x*lights[lighti].color.x;
+				pix.y += dotprod*(*s).color.y*lights[lighti].color.y;
+				pix.z += dotprod*(*s).color.z*lights[lighti].color.z;
+			}
+			else if(ob == triangleob)
+			{
+				float ndoti2 = 2*(lightdir.x*normal.x+lightdir.y*normal.y+lightdir.z*normal.z);
+				V reflectedray(ndoti2*normal.x-lightdir.x, ndoti2*normal.y-lightdir.y, ndoti2*normal.z-lightdir.z);
+				normalize(reflectedray);
+				float rdotv = -1*(raydir.x*reflectedray.x+raydir.y*reflectedray.y+raydir.z*reflectedray.z);
+				pix.x += (*tr).color.x*(*tr).reflectivity*pow(rdotv, 10)*lights[lighti].color.x;
+				pix.y += (*tr).color.y*(*tr).reflectivity*pow(rdotv, 10)*lights[lighti].color.y;
+				pix.z += (*tr).color.z*(*tr).reflectivity*pow(rdotv, 10)*lights[lighti].color.z;
+				pix.x += dotprod*(*tr).color.x*lights[lighti].color.x;
+				pix.y += dotprod*(*tr).color.y*lights[lighti].color.y;
+				pix.z += dotprod*(*tr).color.z*lights[lighti].color.z;
+			}
+			else if(ob == planeob) {
+				float ndoti2 = 2*(lightdir.x*normal.x+lightdir.y*normal.y+lightdir.z*normal.z);
+				V reflectedray(ndoti2*normal.x-lightdir.x, ndoti2*normal.y-lightdir.y, ndoti2*normal.z-lightdir.z);
+				normalize(reflectedray);
+				float rdotv = -1*(raydir.x*reflectedray.x+raydir.y*reflectedray.y+raydir.z*reflectedray.z);
+				pix.x += (*p).color.x * (*p).reflectivity * pow(rdotv, 10) * lights[lighti].color.x;
+				pix.y += (*p).color.y * (*p).reflectivity * pow(rdotv, 10) * lights[lighti].color.y;
+				pix.z += (*p).color.z * (*p).reflectivity * pow(rdotv, 10) * lights[lighti].color.z;
+				pix.x += dotprod * (*p).color.x * lights[lighti].color.x;
+				pix.y += dotprod * (*p).color.y * lights[lighti].color.y;
+				pix.z += dotprod * (*p).color.z * lights[lighti].color.z;	
+			}
+		}
+	}
+	// reflection and refraction: recursive calling of raytrace gives global illumination
 	if(depth < MAX_depth)
 	{
 		float refractindex = 1.0;
@@ -291,7 +375,7 @@ vector3f raytrace(V rayorigin, V raydir, int depth)
 				inSphere = true;
 			}
 			refractindex = (*s).refractive_index;
-			if((*s).reflectivity > 0 || (*s).transparency > 0)
+			if((*s).reflectivity > 0)
 			{
 				float fratio = -1*(raydir.x*normal.x + raydir.y*normal.y + raydir.z*normal.z);
 				float fresnel = 0.1*1 + 0.9*pow(1.0-fratio, 3);
@@ -396,80 +480,6 @@ vector3f raytrace(V rayorigin, V raydir, int depth)
 			}
 		}
 	}
-	// if(depth >= MAX_depth || diffuse)
-	// {
-		for(int lighti = 0; lighti < numlights; lighti++)
-		{
-			V lightdir(lights[lighti].point.x-intpoint.x, lights[lighti].point.y-intpoint.y, lights[lighti].point.z-intpoint.z); 
-			normalize(lightdir);
-			float dotprod = max(float(0.0), normal.x*lightdir.x+normal.y*lightdir.y+normal.z*lightdir.z);
-			// check if point is in shadow
-			bool inshadow = false;
-			V normaltemp;
-			float t0, t1, t;
-			V biasedintpoint(intpoint.x+normal.x*bias, intpoint.y+normal.y*bias, intpoint.z+normal.z*bias);
-			for(int spherei = 0; spherei < numspheres; spherei++)
-			{
-				if(intersectsphere(biasedintpoint, lightdir, spheres[spherei], normaltemp, t0, t1))
-				{
-					inshadow = true;
-					break;
-				}
-			}
-			if(inshadow == true)
-			{
-				continue;
-			}
-			for(int trianglei = 0; trianglei < numtriangles; trianglei++)
-			{
-				if(intersecttriangle(biasedintpoint, lightdir, triangles[trianglei], normaltemp, t))
-				{
-					inshadow = true;
-					break;
-				}
-			}
-			if(!inshadow)
-			{
-				if(ob == sphereob)
-				{
-					float ndoti2 = 2*(lightdir.x*normal.x+lightdir.y*normal.y+lightdir.z*normal.z);
-					V reflectedray(ndoti2*normal.x-lightdir.x, ndoti2*normal.y-lightdir.y, ndoti2*normal.z-lightdir.z);
-					normalize(reflectedray);
-					float rdotv = -1*(raydir.x*reflectedray.x+raydir.y*reflectedray.y+raydir.z*reflectedray.z);
-					pix.x += (*s).color.x*(*s).reflectivity*pow(rdotv, 10)*lights[lighti].color.x;
-					pix.y += (*s).color.y*(*s).reflectivity*pow(rdotv, 10)*lights[lighti].color.y;
-					pix.z += (*s).color.z*(*s).reflectivity*pow(rdotv, 10)*lights[lighti].color.z;
-					pix.x += dotprod*(*s).color.x*lights[lighti].color.x;
-					pix.y += dotprod*(*s).color.y*lights[lighti].color.y;
-					pix.z += dotprod*(*s).color.z*lights[lighti].color.z;
-				}
-				else if(ob == triangleob)
-				{
-					float ndoti2 = 2*(lightdir.x*normal.x+lightdir.y*normal.y+lightdir.z*normal.z);
-					V reflectedray(ndoti2*normal.x-lightdir.x, ndoti2*normal.y-lightdir.y, ndoti2*normal.z-lightdir.z);
-					normalize(reflectedray);
-					float rdotv = -1*(raydir.x*reflectedray.x+raydir.y*reflectedray.y+raydir.z*reflectedray.z);
-					pix.x += (*tr).color.x*(*tr).reflectivity*pow(rdotv, 10)*lights[lighti].color.x;
-					pix.y += (*tr).color.y*(*tr).reflectivity*pow(rdotv, 10)*lights[lighti].color.y;
-					pix.z += (*tr).color.z*(*tr).reflectivity*pow(rdotv, 10)*lights[lighti].color.z;
-					pix.x += dotprod*(*tr).color.x*lights[lighti].color.x;
-					pix.y += dotprod*(*tr).color.y*lights[lighti].color.y;
-					pix.z += dotprod*(*tr).color.z*lights[lighti].color.z;
-				}
-				else if(ob == planeob) {
-					float ndoti2 = 2*(lightdir.x*normal.x+lightdir.y*normal.y+lightdir.z*normal.z);
-					V reflectedray(ndoti2*normal.x-lightdir.x, ndoti2*normal.y-lightdir.y, ndoti2*normal.z-lightdir.z);
-					normalize(reflectedray);
-					float rdotv = -1*(raydir.x*reflectedray.x+raydir.y*reflectedray.y+raydir.z*reflectedray.z);
-					pix.x += (*p).color.x * (*p).reflectivity * pow(rdotv, 10) * lights[lighti].color.x;
-					pix.y += (*p).color.y * (*p).reflectivity * pow(rdotv, 10) * lights[lighti].color.y;
-					pix.z += (*p).color.z * (*p).reflectivity * pow(rdotv, 10) * lights[lighti].color.z;
-					pix.x += dotprod * (*p).color.x * lights[lighti].color.x;
-					pix.y += dotprod * (*p).color.y * lights[lighti].color.y;
-					pix.z += dotprod * (*p).color.z * lights[lighti].color.z;	
-				}
-			}
-		}
 	// }
 	return pix;
 }
@@ -593,6 +603,15 @@ void parseinput(char * file)
 			// cout<<"tr.transparency "<<t.transparency<<endl;
 			triangles.push_back(t);
 			numtriangles++;
+		}
+		else if(objecttype == "cuboid") {
+			struct cuboid c;
+			op >> c.corner1.x >> c.corner1.y >> c.corner1.z;
+			op >> c.corner2.x >> c.corner2.y >> c.corner2.z;
+			op >> c.color.x >> c.color.y >> c.color.z;
+			op >> c.reflectivity >> c.transparency >> c.refractive_index;
+			cuboids.push_back(t);
+			numcuboids++;
 		}
 		else if(objecttype == "light")
 		{

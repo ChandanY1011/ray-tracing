@@ -167,48 +167,6 @@ V invtransform(V v, struct xmatrix m, int transpose) {
 	}
 	return ret;
 }
-// V invtransform(V v, struct xmatrix m, int transpose)
-// {
-// 	float b11 = m.def.y*m.ghi.z-m.ghi.y*m.def.z;
-// 	float b12 = m.abc.z*m.ghi.y-m.abc.y*m.ghi.z;
-// 	float b13 = m.abc.y*m.def.z-m.abc.z*m.def.y;
-// 	float b14 = 0.0, b24 = 0.0, b34 = 0.0;
-// 	float b21 = m.def.z*m.ghi.x-m.def.x*m.ghi.z;
-// 	float b22 = m.abc.x*m.ghi.z-m.abc.z*m.ghi.x;
-// 	float b23 = m.abc.z*m.def.x-m.abc.x*m.def.z;
-// 	float b31 = m.def.x*m.ghi.y-m.def.y*m.ghi.x;
-// 	float b32 = m.abc.y*m.ghi.x-m.abc.x*m.ghi.y;
-// 	float b33 = m.abc.x*m.def.y-m.abc.y*m.def.x;
-// 	float b41 = m.def.x*m.ghi.z*m.lmn.y+m.def.x*m.ghi.x*m.lmn.z+m.def.z*m.ghi.y*m.lmn.x
-// 				-m.def.x*m.ghi.y*m.lmn.z-m.def.x*m.ghi.z*m.lmn.x-m.def.z*m.ghi.x*m.lmn.y;
-// 	float b42 = m.abc.x*m.ghi.y*m.lmn.z+m.abc.y*m.ghi.z*m.lmn.x+m.abc.z*m.ghi.x*m.lmn.y
-// 				-m.abc.x*m.ghi.z*m.lmn.y-m.abc.y*m.ghi.x*m.lmn.z-m.abc.z*m.ghi.y*m.lmn.x;
-// 	float b43 = m.abc.x*m.def.z*m.lmn.y+m.abc.y*m.def.x*m.lmn.z+m.abc.z*m.def.y*m.ghi.x
-// 				-m.abc.x*m.def.y*m.lmn.z-m.abc.y*m.def.z*m.lmn.x-m.abc.z*m.def.x*m.lmn.y;
-// 	float b44 = m.abc.x*m.def.y*m.ghi.z+m.abc.y*m.def.z*m.ghi.x+m.abc.z*m.def.x*m.ghi.y
-// 				-m.abc.x*m.def.z*m.ghi.y-m.abc.y*m.def.x*m.ghi.z-m.abc.z*m.def.y*m.ghi.x;
-// 	float det = m.abc.x*m.def.y*m.ghi.z+m.abc.y*m.def.z*m.ghi.x+m.abc.z*m.def.x*m.ghi.y
-// 				-m.abc.x*m.def.z*m.ghi.y-m.abc.y*m.def.x*m.ghi.z-m.abc.z*m.ghi.x*m.def.y;
-// 	if(det <= 1e-4)
-// 	{
-// 		return v;
-// 	}
-// 	if(transpose)
-// 	{
-// 		float homow = (v.x*b14+v.y*b24+v.z*b34+b44);
-// 		v.x = (v.x*b11+v.y*b21+v.z*b31+b41)/(det*homow);
-// 		v.y = (v.x*b12+v.y*b22+v.z*b32+b42)/(det*homow);
-// 		v.z = (v.x*b13+v.y*b23+v.z*b33+b43)/(det*homow);
-// 	}
-// 	else
-// 	{
-// 		float homow = (v.x*b41+v.y*b42+v.z*b43+b44);
-// 		v.x = (v.x*b11+v.y*b12+v.z*b13+b14)/(det*homow);
-// 		v.y = (v.x*b21+v.y*b22+v.z*b23+b24)/(det*homow);
-// 		v.z = (v.x*b31+v.y*b32+v.z*b33+b34)/(det*homow);
-// 	}
-// 	return v;
-// }
 
 // check intersection of a ray and a sphere
 bool intersectsphere(V rayorigin, V raydir, struct sphere s, V & normal, float & t0, float & t1)
@@ -371,8 +329,8 @@ vector3f raytrace(V rayorigin, V raydir, int depth)
 	for(int spherei = 0; spherei < numspheres; spherei++)
 	{
 		float t0 = Max_t, t1 = Max_t;
-		V normaltemp, trayorigin = rayorigin, traydir = raydir;
 		// random
+		V normaltemp, trayorigin = rayorigin, traydir = raydir;
 		if(spheres[spherei].istransformed)
 		{
 			trayorigin = invtransform(rayorigin, spheres[spherei].mat, 0);

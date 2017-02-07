@@ -530,10 +530,10 @@ vector3f raytrace(V rayorigin, V raydir, int depth) {
 		for(int spherei = 0; spherei < numspheres; spherei++) {
 			// random
 			V tlightdir = lightdir;
-			/*if(spheres[spherei].istransformed) {
+			if(spheres[spherei].istransformed) {
 				tlightdir = invtransform(lightdir, spheres[spherei].mat, 0);
-				biasedintpoint = transform(biasedintpoint, spheres[spherei].mat);
-			}*/
+				// biasedintpoint = transform(biasedintpoint, spheres[spherei].mat);
+			}
 			if(intersectsphere(biasedintpoint, tlightdir, spheres[spherei], normaltemp, t0, t1)) {
 				inshadow = true;
 				break;

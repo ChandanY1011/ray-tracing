@@ -32,8 +32,8 @@ struct sphere
 {
 	V center;
 	int istransformed;
-	float radius, reflectivity, transparency, refractive_index;
-	V color;
+	float radius, reflectivity, transparency, refractive_index, specexpo;
+	V color, speccoeff, diffcolor;
 	struct xmatrix mat;
 	sphere() { };
 	sphere(V gcenter, float gradius, V gcolor) : center(gcenter), radius(gradius), color(gcolor) { };
@@ -52,8 +52,8 @@ struct plane
 struct triangle
 {
 	V u, v, w;
-	V color;
-	float reflectivity, transparency, refractive_index;
+	V color, speccoeff, diffcolor;
+	float reflectivity, transparency, refractive_index, specexpo;
 	triangle() { };
 	triangle(V gu, V gv, V gw, V gcolor) : u(gu), v(gv), w(gw), color(gcolor) { };
 };
@@ -71,10 +71,10 @@ struct light
 struct polygon {
 	int numvertices;
 	vector<V> vertices;
-	V color;
+	V color, speccoeff, diffcolor;
 	V normal;
 	V centerPoint;
-	float reflectivity, transparency, refractive_index;
+	float reflectivity, transparency, refractive_index, specexpo;
 	polygon() {}
 	~polygon() {}
 };
@@ -101,6 +101,7 @@ vector <triangle> triangles;
 vector <polygon> polygons;
 vector <light> lights;
 struct coordinatesystem vcs;
+V ambient;
 
 int numspheres = 0;
 int numplanes = 0;
@@ -233,7 +234,6 @@ bool intersectsphere(V rayorigin, V raydir, struct sphere s, V & normal, float &
 
 
 // second approach(vector based) for sphere ray intersection
-// second approach(vector based) for sphere ray intersection
 bool intersectspherealt(V rayorigin, V raydir, struct sphere s, V & normal, float & t0, float & t1)
 {
 	V L(s.center.x-rayorigin.x, s.center.y-rayorigin.y, s.center.z-rayorigin.z);
@@ -270,6 +270,7 @@ bool intersectspherealt(V rayorigin, V raydir, struct sphere s, V & normal, floa
 	normal.z = (rayorigin.z+raydir.z*t-s.center.z)/s.radius;
 	return true;
 }
+
 // check intersection of a ray and a plane
 bool intersectplane(V rayorigin, V raydir, struct plane p, float & t)
 {
@@ -386,6 +387,7 @@ vector3f raytrace(V rayorigin, V raydir, int depth) {
 			trayorigin = invtransform(rayorigin, spheres[spherei].mat, 0);
 			traydir = invtransform(raydir, spheres[spherei].mat, 0);
 		}
+		normalize(traydir);
 		if(intersectsphere(trayorigin, traydir, spheres[spherei], normaltemp, t0, t1)) {
 			if(t0 < nearest) {
 				nearest = t0;
@@ -446,17 +448,22 @@ vector3f raytrace(V rayorigin, V raydir, int depth) {
 	bool diffuse = true;
 	if(depth < MAX_depth) {
 		if(ob == sphereob) {
-			
+			V traydir = raydir;
+			if(transformed)
+			{
+				traydir = invtransform(raydir, (*s).mat, 0);
+			}
+			normalize(traydir);
 			bool insphere = false;
-			if(dotproduct(normal, raydir) > 0)  {
+			if(dotproduct(normal, traydir) > 0)  {
 				normal.x *= -1; normal.y *= -1; normal.z *= -1;
 				insphere = true;
 			}
 			if((*s).reflectivity > 0) {
 				// float fratio = -1*(raydir.x*normal.x+raydir.y*normal.y+raydir.z*normal.z);
-				float fratio = -1*(dotproduct(raydir, normal));
+				float fratio = -1*(dotproduct(traydir, normal));
 				float fresnel = 0.1*1+0.9*pow(1.0-fratio, 3);
-				V reflectdir(raydir.x+2*fratio*normal.x, raydir.y+2*fratio*normal.y, raydir.z+2*fratio*normal.z);
+				V reflectdir(traydir.x+2*fratio*normal.x, traydir.y+2*fratio*normal.y, traydir.z+2*fratio*normal.z);
 				normalize(reflectdir);
 				V biasedintpoint(intpoint.x+normal.x*bias, intpoint.y+normal.y*bias, intpoint.z+normal.z*bias);
 				V reflectpoint = raytrace(biasedintpoint, reflectdir, depth+1);
@@ -470,13 +477,13 @@ vector3f raytrace(V rayorigin, V raydir, int depth) {
 				if(insphere)  {
 					refractindex = 1.0/refractindex;
 				}
-				float fratio = -1*(raydir.x*normal.x+raydir.y*normal.y+raydir.z*normal.z);
+				float fratio = -1*(traydir.x*normal.x+traydir.y*normal.y+traydir.z*normal.z);
 				float fresnel = 0.1*1+0.9*pow(1.0-fratio, 3);
-				float raydotn = -1*(normal.x*raydir.x+normal.y*raydir.y+normal.z*raydir.z);
+				float raydotn = -1*(normal.x*traydir.x+normal.y*traydir.y+normal.z*traydir.z);
 				float k = 1.0-refractindex*refractindex*(1.0-raydotn*raydotn);
-				V refractdir(raydir.x*refractindex+normal.x*(refractindex*raydotn-sqrt(k)),
-							 raydir.y*refractindex+normal.y*(refractindex*raydotn-sqrt(k)),
-							 raydir.z*refractindex+normal.z*(refractindex*raydotn-sqrt(k)));
+				V refractdir(traydir.x*refractindex+normal.x*(refractindex*raydotn-sqrt(k)),
+							 traydir.y*refractindex+normal.y*(refractindex*raydotn-sqrt(k)),
+							 traydir.z*refractindex+normal.z*(refractindex*raydotn-sqrt(k)));
 				normalize(refractdir);
 				V biasedintpoint(intpoint.x-normal.x*bias, intpoint.y-normal.y*bias, intpoint.z-normal.z*bias);
 				V refractpoint = raytrace(biasedintpoint, refractdir, depth+1);
@@ -565,6 +572,7 @@ vector3f raytrace(V rayorigin, V raydir, int depth) {
 			if(spheres[spherei].istransformed) {
 				tlightdir = invtransform(lightdir, spheres[spherei].mat, 0);
 			}
+			normalize(tlightdir);
 			if(intersectsphere(biasedintpoint, tlightdir, spheres[spherei], normaltemp, t0, t1)) {
 				inshadow = true;
 				break;
@@ -581,18 +589,26 @@ vector3f raytrace(V rayorigin, V raydir, int depth) {
 		}
 		if(!inshadow) {
 			if(ob == sphereob) {
+				V traydir = raydir, tlightdir = lightdir;
+				if((*s).istransformed)
+				{
+					tlightdir = invtransform(lightdir, (*s).mat, 0);
+					traydir = invtransform(raydir, (*s).mat, 0);
+				}
+				normalize(tlightdir);
+				normalize(traydir);
 				// float ndoti2 = 2*(lightdir.x*normal.x+lightdir.y*normal.y+lightdir.z*normal.z);
-				float ndoti2 = 2*(dotproduct(lightdir, normal));
-				V reflectedray(ndoti2*normal.x-lightdir.x, ndoti2*normal.y-lightdir.y, ndoti2*normal.z-lightdir.z);
+				float ndoti2 = 2*(dotproduct(tlightdir, normal));
+				V reflectedray(ndoti2*normal.x-tlightdir.x, ndoti2*normal.y-tlightdir.y, ndoti2*normal.z-tlightdir.z);
 				normalize(reflectedray);
 				// float rdotv = -1*(raydir.x*reflectedray.x+raydir.y*reflectedray.y+raydir.z*reflectedray.z);
-				float rdotv = -1*(dotproduct(raydir, reflectedray));
-				pix.x += (*s).color.x*(*s).reflectivity*pow(rdotv, 10)*lights[lighti].color.x;
-				pix.y += (*s).color.y*(*s).reflectivity*pow(rdotv, 10)*lights[lighti].color.y;
-				pix.z += (*s).color.z*(*s).reflectivity*pow(rdotv, 10)*lights[lighti].color.z;
-				pix.x += dotprod*(*s).color.x*lights[lighti].color.x;
-				pix.y += dotprod*(*s).color.y*lights[lighti].color.y;
-				pix.z += dotprod*(*s).color.z*lights[lighti].color.z;
+				float rdotv = -1*(dotproduct(traydir, reflectedray));
+				pix.x += (*s).speccoeff.x*pow(rdotv, (*s).specexpo)*lights[lighti].color.x;
+				pix.y += (*s).speccoeff.y*pow(rdotv, (*s).specexpo)*lights[lighti].color.y;
+				pix.z += (*s).speccoeff.z*pow(rdotv, (*s).specexpo)*lights[lighti].color.z;
+				pix.x += dotprod*(*s).diffcolor.x*lights[lighti].color.x;
+				pix.y += dotprod*(*s).diffcolor.y*lights[lighti].color.y;
+				pix.z += dotprod*(*s).diffcolor.z*lights[lighti].color.z;
 			}
 			else if(ob == triangleob) {
 				// float ndoti2 = 2*(lightdir.x*normal.x+lightdir.y*normal.y+lightdir.z*normal.z);
@@ -601,12 +617,12 @@ vector3f raytrace(V rayorigin, V raydir, int depth) {
 				normalize(reflectedray);
 				// float rdotv = -1*(raydir.x*reflectedray.x+raydir.y*reflectedray.y+raydir.z*reflectedray.z);
 				float rdotv = -1*(dotproduct(raydir, reflectedray));
-				pix.x += (*tr).color.x*(*tr).reflectivity*pow(rdotv, 10)*lights[lighti].color.x;
-				pix.y += (*tr).color.y*(*tr).reflectivity*pow(rdotv, 10)*lights[lighti].color.y;
-				pix.z += (*tr).color.z*(*tr).reflectivity*pow(rdotv, 10)*lights[lighti].color.z;
-				pix.x += dotprod*(*tr).color.x*lights[lighti].color.x;
-				pix.y += dotprod*(*tr).color.y*lights[lighti].color.y;
-				pix.z += dotprod*(*tr).color.z*lights[lighti].color.z;
+				pix.x += (*tr).speccoeff.x*pow(rdotv, (*tr).specexpo)*lights[lighti].color.x;
+				pix.y += (*tr).speccoeff.y*pow(rdotv, (*tr).specexpo)*lights[lighti].color.y;
+				pix.z += (*tr).speccoeff.z*pow(rdotv, (*tr).specexpo)*lights[lighti].color.z;
+				pix.x += dotprod*(*tr).diffcolor.x*lights[lighti].color.x;
+				pix.y += dotprod*(*tr).diffcolor.y*lights[lighti].color.y;
+				pix.z += dotprod*(*tr).diffcolor.z*lights[lighti].color.z;
 			}
 			else if(ob == polygonob) {
 				float ndoti2 = 2*(dotproduct(lightdir, normal));
@@ -614,15 +630,19 @@ vector3f raytrace(V rayorigin, V raydir, int depth) {
 				normalize(reflectedray);
 				// float rdotv = -1*(raydir.x*reflectedray.x+raydir.y*reflectedray.y+raydir.z*reflectedray.z);
 				float rdotv = -1*(dotproduct(raydir, reflectedray));
-				pix.x += (*pgon).color.x*(*pgon).reflectivity*pow(rdotv, 10)*lights[lighti].color.x;
-				pix.y += (*pgon).color.y*(*pgon).reflectivity*pow(rdotv, 10)*lights[lighti].color.y;
-				pix.z += (*pgon).color.z*(*pgon).reflectivity*pow(rdotv, 10)*lights[lighti].color.z;
-				pix.x += dotprod*(*pgon).color.x*lights[lighti].color.x;
-				pix.y += dotprod*(*pgon).color.y*lights[lighti].color.y;
-				pix.z += dotprod*(*pgon).color.z*lights[lighti].color.z;	
+				pix.x += (*pgon).speccoeff.x*pow(rdotv, (*pgon).specexpo)*lights[lighti].color.x;
+				pix.y += (*pgon).speccoeff.y*pow(rdotv, (*pgon).specexpo)*lights[lighti].color.y;
+				pix.z += (*pgon).speccoeff.z*pow(rdotv, (*pgon).specexpo)*lights[lighti].color.z;
+				pix.x += dotprod*(*pgon).diffcolor.x*lights[lighti].color.x;
+				pix.y += dotprod*(*pgon).diffcolor.y*lights[lighti].color.y;
+				pix.z += dotprod*(*pgon).diffcolor.z*lights[lighti].color.z;	
 			}
 		}
 	}
+	// ambient light irrespective of point being in shadow
+	pix.x += ambient.x;
+	pix.y += ambient.y;
+	pix.z += ambient.z;
 	return pix;
 }
 
@@ -632,43 +652,22 @@ void render2Dantialiasing1(char* filename) {
 	// {
 	// 	image[row] = new vector3f[width];
 	// }
-	// V * pixeli;
-	// float fieldofview = 90;
-	// float whratio = (float)width/(float)height;
-	// float dwidth = 1.0/(float)width;
-	// float dheight = 1.0/(float)height;
-	// float angleofview = tan(M_PI*0.5*fieldofview/180);
-	// V orig(0.0, 0.0, 0.0);
-
-	V ** image = new V * [height];
-	for(int row = 0; row < height; row++) {
-		image[row] = new vector3f[width];
-	}
 	V * pixeli;
-	V ncrossv;
-	ncrossv.x = -1*(vcs.vpn.y*vcs.up.z - vcs.vpn.z*vcs.up.y);
-	ncrossv.y = -1*(vcs.up.x*vcs.vpn.z - vcs.vpn.x*vcs.up.z);
-	ncrossv.z = -1*(vcs.vpn.x*vcs.up.y - vcs.vpn.y*vcs.up.x);
-	normalize(ncrossv);
+	float fieldofview = 90;
 	float whratio = (float)width/(float)height;
 	float dwidth = 1.0/(float)width;
 	float dheight = 1.0/(float)height;
-	float angleofview = 1.0/sqrt(dotproduct(vcs.camera, vcs.camera));
-	V orig, raydir;
-	orig.x = vcs.camera.x*ncrossv.x+vcs.camera.y*vcs.up.x+vcs.camera.z*vcs.vpn.x+vcs.vrp.x;
-	orig.y = vcs.camera.x*ncrossv.y+vcs.camera.y*vcs.up.y+vcs.camera.z*vcs.vpn.y+vcs.vrp.y;
-	orig.z = vcs.camera.x*ncrossv.z+vcs.camera.y*vcs.up.z+vcs.camera.z*vcs.vpn.z+vcs.vrp.z;
-
-
-	// V ** image = new V * [height];
+	float angleofview = tan(M_PI*0.5*fieldofview/180);
+	V orig(0.0, 0.0, 0.0);
+	V ** imagenew = new V * [height];
 	for(int row = 0; row < height; row++)
 	{
-		image[row] = new vector3f[width];
+		imagenew[row] = new vector3f[width];
 	}
 	
 	for(int y=0; y<height; y++) 
 	{
-		pixeli = image[y];
+		pixeli = imagenew[y];
 		for(int x=0; x<width; x++) 
 		{
 			float counter = 0.0;
@@ -680,22 +679,11 @@ void render2Dantialiasing1(char* filename) {
 					if(xval >= 0 && yval >= 0 && xval < width && yval < height) 
 					{
 						counter = counter + 1.0;
-
 						float imagex = (2*((xval+0.5)*dwidth)-1)*angleofview*whratio;
 						float imagey = (1-2*((yval+0.5)*dheight))*angleofview;
-						// V raydir(imagex, imagey, -1);
-						raydir.x = (imagex-vcs.camera.x)*ncrossv.x+(imagey-vcs.camera.y)*vcs.up.x+(-vcs.camera.z)*vcs.vpn.x;
-						raydir.y = (imagex-vcs.camera.x)*ncrossv.y+(imagey-vcs.camera.y)*vcs.up.y+(-vcs.camera.z)*vcs.vpn.y;
-						raydir.z = (imagex-vcs.camera.x)*ncrossv.z+(imagey-vcs.camera.y)*vcs.up.z+(-vcs.camera.z)*vcs.vpn.z;
+						V raydir(imagex, imagey, -1);
 						normalize(raydir);
-						*pixeli = raytrace(orig, raydir, 0);
-						pixeli++;
-
-						// float imagex = (2*((xval+0.5)*dwidth)-1)*angleofview*whratio;
-						// float imagey = (1-2*((yval+0.5)*dheight))*angleofview;
-						// V raydir(imagex, imagey, -1);
-						// normalize(raydir);
-						// temppixel = raytrace(orig, raydir, 0);
+						temppixel = raytrace(orig, raydir, 0);
 						if(yval == y && xval == x) 
 							{
 								pixeli->x += 2*temppixel.x, pixeli->y += 2*temppixel.y, pixeli->z += 2*temppixel.z;
@@ -720,9 +708,9 @@ void render2Dantialiasing1(char* filename) {
 	{
 		for(int x = 0; x < width; x++)
 		{
-			fputc(min(float(1.0), image[y][x].x)*255, f);
-			fputc(min(float(1.0), image[y][x].y)*255, f);
-			fputc(min(float(1.0), image[y][x].z)*255, f);
+			fputc(min(float(1.0), imagenew[y][x].x)*255, f);
+			fputc(min(float(1.0), imagenew[y][x].y)*255, f);
+			fputc(min(float(1.0), imagenew[y][x].z)*255, f);
 		}
 	}
 	fclose(f);
@@ -871,6 +859,7 @@ void parseinput(char * file)
 	op >> name >> vcs.vrp.x >> vcs.vrp.y >> vcs.vrp.z;
 	op >> name >> vcs.vpn.x >> vcs.vpn.y >> vcs.vpn.z;
 	op >> name >> vcs.up.x >> vcs.up.y >> vcs.up.z;
+	op >> name >> ambient.x >> ambient.y >> ambient.z;
 	for(int objecti = 0; objecti < numobjects; objecti++) {
 		string objecttype;
 		op >> objecttype;
@@ -881,7 +870,9 @@ void parseinput(char * file)
 			op >> s.center.x >> s.center.y >> s.center.z;
 			op >> s.radius;
 			op >> s.color.x >> s.color.y >> s.color.z;
-			op >> s.reflectivity >> s.transparency >> s.refractive_index >> s.istransformed;
+			op >> s.diffcolor.x >> s.diffcolor.y >> s.diffcolor.z;
+			op >> s.speccoeff.x >> s.speccoeff.y >> s.speccoeff.z;
+			op >> s.reflectivity >> s.transparency >> s.refractive_index >> s.istransformed >> s.specexpo;
 			if(s.istransformed)
 			{
 				op >> s.mat.a.x >> s.mat.a.y >> s.mat.a.z;
@@ -910,7 +901,9 @@ void parseinput(char * file)
 			op >> t.v.x >> t.v.y >> t.v.z;
 			op >> t.w.x >> t.w.y >> t.w.z;
 			op >> t.color.x >> t.color.y >> t.color.z;
-			op >> t.reflectivity >> t.transparency >> t.refractive_index;
+			op >> t.diffcolor.x >> t.diffcolor.y >> t.diffcolor.z;
+			op >> t.speccoeff.x >> t.speccoeff.y >> t.speccoeff.z;
+			op >> t.reflectivity >> t.transparency >> t.refractive_index >> t.specexpo;
 			triangles.push_back(t);
 			numtriangles++;
 		}
@@ -960,8 +953,10 @@ void parseinput(char * file)
 			p.centerPoint = centerPoint;
 			p.normal = normal;
 			op >> p.color.x >> p.color.y >> p.color.z;
+			op >> p.diffcolor.x >> p.diffcolor.y >> p.diffcolor.z;
+			op >> p.speccoeff.x >> p.speccoeff.y >> p.speccoeff.z;
 			// cout<<"color = "<<p.color.x<<" "<<p.color.y<<" "<<p.color.z<<endl;
-			op >> p.reflectivity >> p.transparency >> p.refractive_index;
+			op >> p.reflectivity >> p.transparency >> p.refractive_index >> p.specexpo;
 			// cout<<"features = "<<p.reflectivity<<" "<<p.transparency<<" "<<p.refractive_index<<endl;
 			// cout<<"###n = "<<n<<endl;
 			if(polygonCorrect) {

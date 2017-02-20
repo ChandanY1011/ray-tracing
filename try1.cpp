@@ -52,13 +52,13 @@ struct triangle
 	triangle(V gu, V gv, V gw, V gcolor) : u(gu), v(gv), w(gw), color(gcolor) { };
 };
 
-struct cuboid {
-	V c1, c2, c3 ,c4, c5, c6, c7, c8;
-	V color;
-	float reflectivity, transparency, refractive_index;
-	cuboid() {};
-	cuboid(V c1, V c2, V col) : corner1(c1), corner2(c2), color(col) {};
-};
+// struct cuboid {
+// 	V c1, c2, c3 ,c4, c5, c6, c7, c8;
+// 	V color;
+// 	float reflectivity, transparency, refractive_index;
+// 	cuboid() {};
+// 	cuboid(V c1, V c2, V col) : corner1(c1), corner2(c2), color(col) {};
+// };
 
 // light source
 struct light
@@ -82,7 +82,7 @@ vector <sphere> spheres;
 vector <plane> planes;
 vector <triangle> triangles;
 vector <light> lights;
-vector <cuboid> cuboids;
+// vector <cuboid> cuboids;
 
 int numspheres = 0;
 int numplanes = 0;
@@ -500,54 +500,54 @@ void render2d(char* outfile)
 	float dheight = 1.0/(float)height;
 	float angleofview = tan(M_PI*0.5*fieldofview/180);
 	V orig(0.0, 0.0, 0.0);
-	for(int yval = 0; yval < height; yval++)
-	{
-		pixeli = image[yval];
-		for(int xval = 0; xval < width; xval++)
-		{
-			float imagex = (2*((xval+0.5)*dwidth)-1)*angleofview*whratio;
-			float imagey = (1-2*((yval+0.5)*dheight))*angleofview;
-			V raydir(imagex, imagey, -1);
-			normalize(raydir);
-			*pixeli = raytrace(orig, raydir, 0);
-			pixeli++;
-		}
-	}
-
-	// anti aliasing stuff
-	// V ** imageNew = new V * [height];
-	// for(int row = 0; row < height; row++)
+	// for(int yval = 0; yval < height; yval++)
 	// {
-	// 	imageNew[row] = new vector3f[width];
-	// }
-	
-	// for(int y=0; y<height; y++) {
-	// 	pixeli = imageNew[y];
-	// 	for(int x=0; x<width; x++) {
-	// 		float counter = 0.0;
-	// 		V temppixel(0.0, 0.0, 0.0);
-	// 		for(int yval = y-1; yval <= y+1; yval++) {
-	// 			for(int xval = x-1; xval <= x+1; xval++) {
-	// 				if(xval >= 0 && yval >= 0 && xval < width && yval < height) {
-	// 					counter = counter + 1.0;
-	// 					float imagex = (2*((xval+0.5)*dwidth)-1)*angleofview*whratio;
-	// 					float imagey = (1-2*((yval+0.5)*dheight))*angleofview;
-	// 					V raydir(imagex, imagey, -1);
-	// 					normalize(raydir);
-	// 					temppixel = raytrace(orig, raydir, 0);
-	// 					if(yval == y && xval == x) 
-	// 						pixeli->x += 2*temppixel.x, pixeli->y += 2*temppixel.y, pixeli->z += 2*temppixel.z;
-	// 					else 
-	// 						pixeli->x += temppixel.x, pixeli->y += temppixel.y, pixeli->z += temppixel.z;
-	// 				}
-	// 			}
-	// 		}
-	// 		pixeli->x = pixeli->x/(counter+1);
-	// 		pixeli->y = pixeli->y/(counter+1);
-	// 		pixeli->z = pixeli->z/(counter+1);
+	// 	pixeli = image[yval];
+	// 	for(int xval = 0; xval < width; xval++)
+	// 	{
+	// 		float imagex = (2*((xval+0.5)*dwidth)-1)*angleofview*whratio;
+	// 		float imagey = (1-2*((yval+0.5)*dheight))*angleofview;
+	// 		V raydir(imagex, imagey, -1);
+	// 		normalize(raydir);
+	// 		*pixeli = raytrace(orig, raydir, 0);
 	// 		pixeli++;
 	// 	}
 	// }
+
+	// anti aliasing stuff
+	V ** imageNew = new V * [height];
+	for(int row = 0; row < height; row++)
+	{
+		imageNew[row] = new vector3f[width];
+	}
+	
+	for(int y=0; y<height; y++) {
+		pixeli = imageNew[y];
+		for(int x=0; x<width; x++) {
+			float counter = 0.0;
+			V temppixel(0.0, 0.0, 0.0);
+			for(int yval = y-1; yval <= y+1; yval++) {
+				for(int xval = x-1; xval <= x+1; xval++) {
+					if(xval >= 0 && yval >= 0 && xval < width && yval < height) {
+						counter = counter + 1.0;
+						float imagex = (2*((xval+0.5)*dwidth)-1)*angleofview*whratio;
+						float imagey = (1-2*((yval+0.5)*dheight))*angleofview;
+						V raydir(imagex, imagey, -1);
+						normalize(raydir);
+						temppixel = raytrace(orig, raydir, 0);
+						if(yval == y && xval == x) 
+							pixeli->x += 2*temppixel.x, pixeli->y += 2*temppixel.y, pixeli->z += 2*temppixel.z;
+						else 
+							pixeli->x += temppixel.x, pixeli->y += temppixel.y, pixeli->z += temppixel.z;
+					}
+				}
+			}
+			pixeli->x = pixeli->x/(counter+1);
+			pixeli->y = pixeli->y/(counter+1);
+			pixeli->z = pixeli->z/(counter+1);
+			pixeli++;
+		}
+	}
 
 	FILE *f = fopen(outfile, "wb");
 	fprintf(f, "P6\n%i %i 255\n", width, height);
@@ -604,15 +604,15 @@ void parseinput(char * file)
 			triangles.push_back(t);
 			numtriangles++;
 		}
-		else if(objecttype == "cuboid") {
-			struct cuboid c;
-			op >> c.corner1.x >> c.corner1.y >> c.corner1.z;
-			op >> c.corner2.x >> c.corner2.y >> c.corner2.z;
-			op >> c.color.x >> c.color.y >> c.color.z;
-			op >> c.reflectivity >> c.transparency >> c.refractive_index;
-			cuboids.push_back(t);
-			numcuboids++;
-		}
+		// else if(objecttype == "cuboid") {
+		// 	struct cuboid c;
+		// 	op >> c.corner1.x >> c.corner1.y >> c.corner1.z;
+		// 	op >> c.corner2.x >> c.corner2.y >> c.corner2.z;
+		// 	op >> c.color.x >> c.color.y >> c.color.z;
+		// 	op >> c.reflectivity >> c.transparency >> c.refractive_index;
+		// 	cuboids.push_back(t);
+		// 	numcuboids++;
+		// }
 		else if(objecttype == "light")
 		{
 			struct light l;

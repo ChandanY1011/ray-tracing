@@ -3,6 +3,7 @@ camera		0.0		0.0		-1.0
 vrp			0.0		0.0		0.0
 vpn			0.0		0.0		-1.0
 up			0.0		1.0		0.0
+
 light 		-20.0 	40.0 	8.0 	0.5 	0.5 	0.5
 sphere		10.0	0.0		-20.0	4.0		0.0		0.0		1.0		1.2		0.8		1.1		0
 sphere 		-8.0 	-10.0 	-20.0 	4.0 	0.0 	1.0 	1.0 	1.0 	0.5		1.1		0
@@ -25,14 +26,6 @@ triangle 	-25.0	50.0	10.0	-25.0	-20.0	10.0	-25.0	-20.0	-50.0	1.0		0.0		1.0		0.5	
 triangle	-25.0	50.0	-50.0	-25.0	-20.0	10.0	-25.0	-20.0	-50.0	1.0		0.0		1.0		0.5		0.0		1.2
 triangle	-25.0	50.0	10.0	-25.0	50.0	-50.0	-25.0	-20.0	-20.0	1.0		0.0		1.0		0.5		0.0		1.2
 
-plane 	2.0 	0.0 	0.0 	200.0 		1.0 	1.0 	0.0 	0.4 	0.0 	1.5
-plane 	1.0 	0.0 	0.0 	200.0 		1.0 	1.0 	1.0 	0.4 	0.0 	1.5
-plane 	0.0		1.0 	0.0 	-50.0 		1.0 	1.0 	1.0 	0.4 	0.0 	1.5
-plane 	0.0 	1.0 	0.0 	-50.0 		1.0 	1.0 	1.0 	0.4 	0.0 	1.5
-plane 	0.0 	0.0 	1.0 	-10.0 		1.0 	1.0 	1.0 	0.4 	0.0 	1.5
-plane 	0.0 	0.0 	1.0 	50.0 		1.0 	1.0 	1.0 	0.4 	0.0 	1.5
-triangle 	0.0 	5.0 	-16.0 	-2.0 	-4.0 	-16.0 	4.0 	-6.0 	-16.0 	0.80 	0.60 	0.70  	0.5 	1.0		1.2
-triangle 	-4.0	5.0 	-10.0 	-3.0 	-4.0 	-10.0 	2.0 	-6.0 	-10.0	0.20 	0.80 	0.30  	0.0 	1.0		1.2
 sphere 		0.0 	-8.0 	-15.0 	4.0 	1.0 	0.0 	0.0 	1.0 	0.0		1.2
 
 sphere 		15.0 	-8.0 	-25.0 	2.0 	0.0 	0.0 	1.0 	1.5 	0.0		1.3
@@ -40,7 +33,7 @@ sphere 		20.0 	-12.0 	-25.0 	2.0 	0.0 	0.0 	1.0 	1.5 	0.0		1.3
 sphere 		7.0 	5.0 	-25.0 	3.0 	1.0 	1.0 	0.0 	1.0 	0.0		1.3
 sphere 		-7.5 	-5.0 	-17.0 	3.0 	1.0 	0.0 	1.0 	1.0 	0.0		1.3
 
-// sphere/light x y z rad colr colg colb reflectivity transparency refractive_index (only for sphere)
-// plane ax by cz d colr colg colb reflectivity transparency refractive_index
+// light x y z Rint Gint Bint
+// sphere/light x y z rad colr colg colb reflectivity reflectivity transparency refractive_index isAffine m00 m01 m02 m03...
 // triangle ux uy uz vx vy vz wx wy wz colr colg colb reflectivity transparency refractive_index
-// plane nx ny nz c colr colg colb reflectivity transparency refractive_index
+// polygon numVertices vx vy vz... colr colg colb reflectivity transparency refractive_index
